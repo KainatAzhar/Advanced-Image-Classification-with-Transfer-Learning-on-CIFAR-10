@@ -1,0 +1,100 @@
+# Advanced Image Classification with Transfer Learning and Data Augmentation
+
+# --- Section 1: Setup and Data Loading ---
+
+import tensorflow as tf
+from tensorflow.keras.applications import VGG16
+from tensorflow.keras.models import Sequential
+from tensorflow.keras.layers import Dense, Flatten, Dropout
+from tensorflow.keras.preprocessing.image import ImageDataGenerator
+from tensorflow.keras.optimizers import Adam
+import matplotlib.pyplot as plt
+import numpy as np
+
+# Load the CIFAR-10 dataset
+print("Loading CIFAR-10 dataset...")
+(train_images, train_labels), (test_images, test_labels) = tf.keras.datasets.cifar10.load_data()
+
+# Normalize pixel values
+train_images, test_images = train_images / 255.0, test_images / 255.0
+
+# Define class names
+class_names = ['airplane', 'automobile', 'bird', 'cat', 'deer',
+               'dog', 'frog', 'horse', 'ship', 'truck']
+
+# --- Section 2: Building the Transfer Learning Model ---
+
+print("Building the Transfer Learning model (VGG16)...")
+
+# Load the VGG16 model, pre-trained on ImageNet.
+# We set include_top=False to exclude the final classification layers.
+base_model = VGG16(weights='imagenet', include_top=False, input_shape=(32, 32, 3))
+
+# Freeze the base model layers to prevent them from being updated during training.
+for layer in base_model.layers:
+    layer.trainable = False
+
+# Create the new model
+model = Sequential([
+    base_model,
+    Flatten(),
+    Dense(256, activation='relu'),
+    Dropout(0.5),
+    Dense(10, activation='softmax')
+])
+
+# Display the model's architecture
+model.summary()
+
+# --- Section 3: Data Augmentation ---
+
+print("Applying data augmentation to the training data...")
+
+datagen = ImageDataGenerator(
+    rotation_range=20,
+    width_shift_range=0.2,
+    height_shift_range=0.2,
+    shear_range=0.2,
+    zoom_range=0.2,
+    horizontal_flip=True,
+    fill_mode='nearest'
+)
+
+datagen.fit(train_images)
+
+# --- Section 4: Compiling and Training ---
+
+print("Compiling and training the model...")
+
+model.compile(optimizer=Adam(learning_rate=0.0001),
+              loss='sparse_categorical_crossentropy',
+              metrics=['accuracy'])
+
+history = model.fit(datagen.flow(train_images, train_labels, batch_size=64),
+                    epochs=20,
+                    validation_data=(test_images, test_labels))
+
+# --- Section 5: Visualizing and Evaluating Results ---
+
+print("Visualizing model performance...")
+
+plt.figure(figsize=(12, 6))
+plt.subplot(1, 2, 1)
+plt.plot(history.history['accuracy'], label='Training Accuracy')
+plt.plot(history.history['val_accuracy'], label='Validation Accuracy')
+plt.title('Training and Validation Accuracy')
+plt.xlabel('Epoch')
+plt.ylabel('Accuracy')
+plt.legend()
+plt.subplot(1, 2, 2)
+plt.plot(history.history['loss'], label='Training Loss')
+plt.plot(history.history['val_loss'], label='Validation Loss')
+plt.title('Training and Validation Loss')
+plt.xlabel('Epoch')
+plt.ylabel('Loss')
+plt.legend()
+plt.show()
+
+print("Evaluating the final model on the test dataset...")
+test_loss, test_acc = model.evaluate(test_images, test_labels, verbose=2)
+print(f'\nTest accuracy: {test_acc*100:.2f}%')
